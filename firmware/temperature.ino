@@ -4,9 +4,9 @@
 
 int TEMPERATURE = A0;   // Temperature sensor
 int SERVO = A1;         // Servo ES08A
-int LEDONBOARD = D7;           // Onboard LED
-int LEDRED = D1;
-int LEDGREEN = D0;
+int LEDONBOARD = D7;    // Onboard LED
+int LEDRED = D1;        // bicolor led red leg
+int LEDGREEN = D0;      // bicolour led green leg
 
 Servo myservo;          // a Servo class for servo ES08A
 int angle = 0;          // server angle (degrees)
@@ -16,7 +16,7 @@ double TEMP_HIGH = 21.0;        // Comfort high threshold
 double TEMP_MIN = 14.0;       // Temperature range minimum
 double TEMP_MAX = 23.0;       // Temperature range maximum
 
-int voltage = 0;        // Temperature sensor voltage
+int voltage_temp = 0;   // Temperature sensor voltage
 double tempC = 0;       // Calculated temperature (degC)
 double tempOld = 0;     // Previous temperature (for smoothing)
 float alpha = 0.8;      // smoothing constant
@@ -24,10 +24,12 @@ int red = 0;            // LED red value (0-255)
 
 long previousMillis = 0;// store the last time temperature was updated
 long interval = 1000;   // interval at which to update (milliseconds)
+double status = 0;
 
 void setup()
 {
   Spark.variable("temperature", &tempC, DOUBLE); // temperature (degC)
+  Spark.variable("voltage_temp", &voltage_temp, INT);
   Spark.variable("TEMP_LOW", &TEMP_LOW, DOUBLE); // temperature (degC)
   Spark.variable("TEMP_HIGH", &TEMP_HIGH, DOUBLE); // temperature (degC)
   Spark.variable("TEMP_MIN", &TEMP_MIN, DOUBLE); // temperature (degC)
@@ -39,19 +41,19 @@ void setup()
   pinMode(LEDRED, OUTPUT);      // onboard LED
   pinMode(LEDGREEN, OUTPUT);    // onboard LED
   myservo.attach(SERVO);        // Attach the servo to A1
-  
-  RGB.control(true);            // Take control of the onboard multicolour LED
+
+  RGB.control(false);            // Take control of the onboard multicolour LED
 }
 
 void loop()
 {
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis > interval) {
-        previousMillis = currentMillis; 
+        previousMillis = currentMillis;
         // get the temperaure sensor voltage (0-4095)
-        voltage = analogRead(TEMPERATURE);
+        voltage_temp = analogRead(TEMPERATURE);
         //Convert the reading into degree celcius
-        tempC = alpha*tempOld + (1-alpha)*(((voltage * 3.3)/4095) - 0.5) * 100;
+        tempC = alpha*tempOld + (1-alpha)*(((voltage_temp * 3.3)/4095) - 0.5) * 100;
         tempOld = tempC;
 
         setTemperatureLED(tempC);
@@ -96,9 +98,10 @@ int setParameter(String command)
 //   LOW: Set comfort low threshold (degC)
 //   HII: Set Comfort high threshold (degC)
 //   INC: Set update interval (milliseconds)
+
 {
     boolean success = false;
-    if(command.startsWith("INC:")) 
+    if(command.startsWith("INC:"))
     {
         interval = parseCommand(command);
         success = true;
@@ -123,14 +126,21 @@ int setParameter(String command)
         TEMP_MAX = (double) parseCommand(command);
         success = true;
     }
-    
-    
+    else if(command.startsWith("RGB:"))
+    {
+        status = (double) parseCommand(command);
+        if (status) RGB.control(true);
+        else RGB.control(false);
+        success = true;
+    }
+
+
     if (success)
     {
         flashOnboard(500);
         return 1;
     }
-    else 
+    else
     {
         flashOnboard(200);
         delay(100);
@@ -139,7 +149,7 @@ int setParameter(String command)
         return -1;
     }
 }
-    
+
 int parseCommand(String command)
 // get integer DDDDD from XXDDDDD
 {
